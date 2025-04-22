@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tender Booking - Vendor Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="dashboard-container">
+    <h1>Vendor Dashboard</h1>
+    <div class="dashboard-nav">
+        <button onclick="showSection('tenders')">View Tenders</button>
+        <button onclick="showSection('place-bid')">Place Bid</button>
+        <button onclick="showSection('bid-status')">View Bid Status</button>
+        <button onclick="showSection('bid-history')">View Bid History</button>
+        <button onclick="logout()">Logout</button>
+    </div>
+    <div id="tenders" class="section" style="display: none;">
+        <h2>Current Tenders</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('tenderTable', 0, 'string')">Title</th>
+                    <th class="sortable" onclick="sortTable('tenderTable', 1, 'string')">Description</th>
+                    <th class="sortable" onclick="sortTable('tenderTable', 2, 'number')">Budget</th>
+                    <th class="sortable" onclick="sortTable('tenderTable', 3, 'date')">Deadline</th>
+                    <th class="sortable" onclick="sortTable('tenderTable', 4, 'string')">Status</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody id="tenderTable"></tbody>
+            </table>
+        </div>
+    </div>
+    <div id="place-bid" class="section" style="display: none;">
+        <h2>Place a Bid</h2>
+        <form id="bid-form">
+            <div class="field">
+                <label for="tenderSelect">Select Tender</label>
+                <select id="tenderSelect" required>
+                    <option value="" disabled selected>Select a Tender</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="bidAmount">Bid Amount (INR)</label>
+                <input type="number" id="bidAmount" placeholder="Enter Bid Amount" min="1" required />
+            </div>
+            <button type="button" onclick="placeBid()">Place Bid</button>
+        </form>
+        <div id="bidMessage"></div>
+    </div>
+    <div id="bid-status" class="section" style="display: none;">
+        <h2>Bid Status</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('bidStatusTable', 0, 'string')">Tender Title</th>
+                    <th class="sortable" onclick="sortTable('bidStatusTable', 1, 'number')">Bid Amount</th>
+                    <th class="sortable" onclick="sortTable('bidStatusTable', 2, 'date')">Submission Date</th>
+                    <th class="sortable" onclick="sortTable('bidStatusTable', 3, 'string')">Status</th>
+                </tr>
+                </thead>
+                <tbody id="bidStatusTable"></tbody>
+            </table>
+        </div>
+    </div>
+    <div id="bid-history" class="section" style="display: none;">
+        <h2>Bid History</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('bidHistoryTable', 0, 'string')">Tender Title</th>
+                    <th class="sortable" onclick="sortTable('bidHistoryTable', 1, 'number')">Bid Amount</th>
+                    <th class="sortable" onclick="sortTable('bidHistoryTable', 2, 'date')">Submission Date</th>
+                    <th class="sortable" onclick="sortTable('bidHistoryTable', 3, 'string')">Tender Status</th>
+                    <th class="sortable" onclick="sortTable('bidHistoryTable', 4, 'string')">Bid Status</th>
+                </tr>
+                </thead>
+                <tbody id="bidHistoryTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+    const API_BASE_URL = "http://localhost:8083";
+    const sections = ["tenders", "place-bid", "bid-status", "bid-history"];
+    let vendorId = 1; // TODO: Replace with actual vendor ID from login session
+    let sortStates = {};
+
+    function showSection(sectionId) {
+        sections.forEach(id => {
+            document.getElementById(id).style.display = id === sectionId ? "block" : "none";
+        });
+        if (sectionId === "tenders") fetchTenders();
+        if (sectionId === "place-bid") populateTenderSelect();
+        if (sectionId === "bid-status") fetchBidStatus();
+        if (sectionId === "bid-history") fetchBidHistory();
+    }
+
+    function fetchTenders() {
+        console.log("Fetching current tenders");
+        fetch(`${API_BASE_URL}/tender/all`)
+            .then(res => res.json())
+            .then(tenders => {
+                const tableBody = document.getElementById("tenderTable");
+                tableBody.innerHTML = "";
+                tenders.forEach(tender => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${tender.title}</td>
+                        <td>${tender.description}</td>
+                        <td>${tender.budget}</td>
+                        <td>${tender.deadline}</td>
+                        <td>${tender.status}</td>
+                        <td><button class="action-btn" onclick="selectTenderForBid(${tender.id})">Place Bid</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(err => console.error("Error fetching tenders:", err));
+    }
+
+    function selectTenderForBid(tenderId) {
+        document.getElementById("tenderSelect").value = tenderId;
+        showSection("place-bid");
+    }
+
+    function populateTenderSelect() {
+        fetch(`${API_BASE_URL}/tender/all`)
+            .then(res => res.json())
+            .then(tenders => {
+                const select = document.getElementById("tenderSelect");
+                select.innerHTML = '<option value="" disabled selected>Select a Tender</option>';
+                tenders.forEach(tender => {
+                    const option = document.createElement("option");
+                    option.value = tender.id;
+                    option.text = tender.title;
+                    select.appendChild(option);
+                });
+            })
+            .catch(err => console.error("Error populating tender select:", err));
+    }
+
+    function placeBid() {
+        const tenderId = document.getElementById("tenderSelect").value;
+        const amount = parseFloat(document.getElementById("bidAmount").value);
+        const messageBox = document.getElementById("bidMessage");
+
+        if (!tenderId || !amount || amount <= 0) {
+            messageBox.innerText = "Please select a tender and enter a valid bid amount.";
+            messageBox.style.color = "red";
+            return;
+        }
+
+        const bid = { vendorId, amount };
+        console.log("Placing bid:", bid);
+
+        fetch(`${API_BASE_URL}/tender/${tenderId}/bid`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(bid)
+        })
+            .then(res => res.text())
+            .then(msg => {
+                messageBox.innerText = msg;
+                messageBox.style.color = msg.includes("Successfully") ? "green" : "red";
+                if (msg.includes("Successfully")) {
+                    document.getElementById("bid-form").reset();
+                }
+            })
+            .catch(err => {
+                console.error("Error placing bid:", err);
+                messageBox.innerText = "Error placing bid.";
+                messageBox.style.color = "red";
+            });
+    }
+
+    function fetchBidStatus() {
+        console.log("Fetching bid status");
+        fetch(`${API_BASE_URL}/tender/vendor/${vendorId}/bids`)
+            .then(res => res.json())
+            .then(bids => {
+                const tableBody = document.getElementById("bidStatusTable");
+                tableBody.innerHTML = "";
+                bids.forEach(bid => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${bid.tender.title}</td>
+                        <td>${bid.amount}</td>
+                        <td>${new Date(bid.submissionDate).toLocaleString()}</td>
+                        <td>${bid.selected ? "Selected" : "Not Selected"}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(err => console.error("Error fetching bid status:", err));
+    }
+
+    function fetchBidHistory() {
+        console.log("Fetching bid history");
+        fetch(`${API_BASE_URL}/tender/vendor/${vendorId}/bids`)
+            .then(res => res.json())
+            .then(bids => {
+                const tableBody = document.getElementById("bidHistoryTable");
+                tableBody.innerHTML = "";
+                bids.forEach(bid => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${bid.tender.title}</td>
+                        <td>${bid.amount}</td>
+                        <td>${new Date(bid.submissionDate).toLocaleString()}</td>
+                        <td>${bid.tender.status}</td>
+                        <td>${bid.selected ? "Selected" : "Not Selected"}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(err => console.error("Error fetching bid history:", err));
+    }
+
+    function sortTable(tableId, colIndex, type) {
+        const table = document.getElementById(tableId);
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const key = `${tableId}-${colIndex}`;
+        const currentSort = sortStates[key] || 'none';
+        const newSort = currentSort === 'asc' ? 'desc' : 'asc';
+        sortStates[key] = newSort;
+
+        table.querySelectorAll('th').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
+        table.querySelector(`th:nth-child(${colIndex + 1})`).classList.add(`sort-${newSort}`);
+
+        rows.sort((a, b) => {
+            let aValue = a.children[colIndex].textContent.trim();
+            let bValue = b.children[colIndex].textContent.trim();
+
+            if (type === 'number') {
+                aValue = parseFloat(aValue) || 0;
+                bValue = parseFloat(bValue) || 0;
+            } else if (type === 'date') {
+                aValue = new Date(aValue).getTime() || 0;
+                bValue = new Date(bValue).getTime() || 0;
+            } else {
+                aValue = aValue.toLowerCase();
+                bValue = bValue.toLowerCase();
+            }
+
+            if (aValue < bValue) return newSort === 'asc' ? -1 : 1;
+            if (aValue > bValue) return newSort === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    function logout() {
+        window.location.href = "login.html";
+    }
+
+    // Initialize
+    showSection("tenders");
+</script>
+</body>
+</html>

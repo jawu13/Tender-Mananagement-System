@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tender Booking - Admin Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="dashboard-container">
+    <h1>Admin Dashboard</h1>
+    <div class="dashboard-nav">
+        <button onclick="showSection('details')">View Details</button>
+        <button onclick="showSection('create-tender')">Create Tender</button>
+        <button onclick="showSection('tenders')">View Tenders</button>
+        <button onclick="logout()">Logout</button>
+    </div>
+    <div id="details" class="section" style="display: none;">
+        <h2>Registered Vendors</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('vendorTable', 0, 'string')">Name</th>
+                    <th class="sortable" onclick="sortTable('vendorTable', 1, 'string')">Email</th>
+                    <th class="sortable" onclick="sortTable('vendorTable', 2, 'string')">Company</th>
+                    <th class="sortable" onclick="sortTable('vendorTable', 3, 'string')">Phone</th>
+                    <th class="sortable" onclick="sortTable('vendorTable', 4, 'string')">Address</th>
+                    <th class="sortable" onclick="sortTable('vendorTable', 5, 'string')">GST Number</th>
+                </tr>
+                </thead>
+                <tbody id="vendorTable"></tbody>
+            </table>
+        </div>
+        <h2>Created Tenders</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('tenderDetailsTable', 0, 'string')">Title</th>
+                    <th class="sortable" onclick="sortTable('tenderDetailsTable', 1, 'string')">Description</th>
+                    <th class="sortable" onclick="sortTable('tenderDetailsTable', 2, 'number')">Budget</th>
+                    <th class="sortable" onclick="sortTable('tenderDetailsTable', 3, 'date')">Deadline</th>
+                    <th class="sortable" onclick="sortTable('tenderDetailsTable', 4, 'string')">Status</th>
+                </tr>
+                </thead>
+                <tbody id="tenderDetailsTable"></tbody>
+            </table>
+        </div>
+    </div>
+    <div id="create-tender" class="section" style="display: none;">
+        <h2>Create New Tender</h2>
+        <form id="tender-form">
+            <div class="field">
+                <label for="tenderTitle">Title</label>
+                <input type="text" id="tenderTitle" placeholder="Tender Title" required />
+            </div>
+            <div class="field">
+                <label for="tenderDescription">Description</label>
+                <textarea id="tenderDescription" placeholder="Tender Description" required></textarea>
+            </div>
+            <div class="field">
+                <label for="tenderBudget">Budget (INR)</label>
+                <input type="number" id="tenderBudget" placeholder="Budget" min="1" required />
+            </div>
+            <div class="field">
+                <label for="tenderDeadline">Deadline</label>
+                <input type="date" id="tenderDeadline" required />
+            </div>
+            <button type="button" onclick="createTender()">Create Tender</button>
+        </form>
+        <div id="tenderMessage"></div>
+    </div>
+    <div id="tenders" class="section" style="display: none;">
+        <h2>All Tenders</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('tenderTable', 0, 'string')">Title</th>
+                    <th class="sortable" onclick="sortTable('tenderTable', 1, 'number')">Budget</th>
+                    <th class="sortable" onclick="sortTable('tenderTable', 2, 'date')">Deadline</th>
+                    <th class="sortable" onclick="sortTable('tenderTable', 3, 'string')">Status</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody id="tenderTable"></tbody>
+            </table>
+        </div>
+    </div>
+    <div id="bids" class="section" style="display: none;">
+        <h2>Bids for <span id="tenderTitleBids"></span></h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable('bidTable', 0, 'string')">Vendor</th>
+                    <th class="sortable" onclick="sortTable('bidTable', 1, 'number')">Amount</th>
+                    <th class="sortable" onclick="sortTable('bidTable', 2, 'date')">Submission Date</th>
+                    <th>Action</th>
+                </tr>
+                </thead>
+                <tbody id="bidTable"></tbody>
+            </table>
+        </div>
+        <button onclick="showSection('tenders')" class="action-btn">Back to Tenders</button>
+    </div>
+</div>
+<script>
+    const API_BASE_URL = "http://localhost:8083";
+    const sections = ["details", "create-tender", "tenders", "bids"];
+    let currentTenderId = null;
+    let sortStates = {};
+
+    function showSection(sectionId) {
+        sections.forEach(id => {
+            document.getElementById(id).style.display = id === sectionId ? "block" : "none";
+        });
+        if (sectionId === "details") fetchDetails();
+        if (sectionId === "tenders") fetchTenders();
+        if (sectionId === "bids") fetchBids(currentTenderId);
+    }
+
+    function fetchDetails() {
+        console.log("Fetching vendor and tender details");
+        // Fetch Vendors
+        fetch(`${API_BASE_URL}/vendor/all`)
+            .then(res => res.json())
+            .then(vendors => {
+                const vendorTable = document.getElementById("vendorTable");
+                vendorTable.innerHTML = "";
+                vendors.forEach(vendor => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${vendor.name}</td>
+                        <td>${vendor.email}</td>
+                        <td>${vendor.companyName}</td>
+                        <td>${vendor.phoneNumber}</td>
+                        <td>${vendor.address}</td>
+                        <td>${vendor.gstNumber || "N/A"}</td>
+                    `;
+                    vendorTable.appendChild(row);
+                });
+            })
+            .catch(err => console.error("Error fetching vendors:", err));
+        // Fetch Tenders
+        fetch(`${API_BASE_URL}/tender/all`)
+            .then(res => res.json())
+            .then(tenders => {
+                const tenderTable = document.getElementById("tenderDetailsTable");
+                tenderTable.innerHTML = "";
+                tenders.forEach(tender => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${tender.title}</td>
+                        <td>${tender.description}</td>
+                        <td>${tender.budget}</td>
+                        <td>${tender.deadline}</td>
+                        <td>${tender.status}</td>
+                    `;
+                    tenderTable.appendChild(row);
+                });
+            })
+            .catch(err => console.error("Error fetching tenders:", err));
+    }
+
+    function sortTable(tableId, colIndex, type) {
+        const table = document.getElementById(tableId);
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const key = `${tableId}-${colIndex}`;
+        const currentSort = sortStates[key] || 'none';
+        const newSort = currentSort === 'asc' ? 'desc' : 'asc';
+        sortStates[key] = newSort;
+
+        // Update sortable indicators
+        table.querySelectorAll('th').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
+        table.querySelector(`th:nth-child(${colIndex + 1})`).classList.add(`sort-${newSort}`);
+
+        rows.sort((a, b) => {
+            let aValue = a.children[colIndex].textContent.trim();
+            let bValue = b.children[colIndex].textContent.trim();
+
+            if (type === 'number') {
+                aValue = parseFloat(aValue) || 0;
+                bValue = parseFloat(bValue) || 0;
+            } else if (type === 'date') {
+                aValue = new Date(aValue).getTime() || 0;
+                bValue = new Date(bValue).getTime() || 0;
+            } else {
+                aValue = aValue.toLowerCase();
+                bValue = bValue.toLowerCase();
+            }
+
+            if (aValue < bValue) return newSort === 'asc' ? -1 : 1;
+            if (aValue > bValue) return newSort === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    function createTender() {
+        const tender = {
+            title: document.getElementById("tenderTitle").value,
+            description: document.getElementById("tenderDescription").value,
+            budget: parseFloat(document.getElementById("tenderBudget").value),
+            deadline: document.getElementById("tenderDeadline").value
+        };
+        console.log("Creating tender:", tender);
+        fetch(`${API_BASE_URL}/tender/create`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(tender)
+        })
+            .then(res => res.text())
+            .then(msg => {
+                const messageBox = document.getElementById("tenderMessage");
+                messageBox.innerText = msg;
+                messageBox.style.color = msg.includes("Successfully") ? "green" : "red";
+                if (msg.includes("Successfully")) {
+                    document.getElementById("tender-form").reset();
+                }
+            })
+            .catch(err => {
+                console.error("Error creating tender:", err);
+                document.getElementById("tenderMessage").innerText = "Error creating tender.";
+                document.getElementById("tenderMessage").style.color = "red";
+            });
+    }
+
+    function fetchTenders() {
+        console.log("Fetching tenders");
+        fetch(`${API_BASE_URL}/tender/all`)
+            .then(res => res.json())
+            .then(tenders => {
+                const tableBody = document.getElementById("tenderTable");
+                tableBody.innerHTML = "";
+                tenders.forEach(tender => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${tender.title}</td>
+                        <td>${tender.budget}</td>
+                        <td>${tender.deadline}</td>
+                        <td>${tender.status}</td>
+                        <td><button class="action-btn" onclick="viewBids(${tender.id}, '${tender.title}')">View Bids</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(err => console.error("Error fetching tenders:", err));
+    }
+
+    function viewBids(tenderId, tenderTitle) {
+        currentTenderId = tenderId;
+        document.getElementById("tenderTitleBids").innerText = tenderTitle;
+        showSection("bids");
+    }
+
+    function fetchBids(tenderId) {
+        console.log("Fetching bids for tender:", tenderId);
+        fetch(`${API_BASE_URL}/tender/${tenderId}/bids`)
+            .then(res => res.json())
+            .then(bids => {
+                const tableBody = document.getElementById("bidTable");
+                tableBody.innerHTML = "";
+                bids.forEach(bid => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${bid.vendor.name}</td>
+                        <td>${bid.amount}</td>
+                        <td>${new Date(bid.submissionDate).toLocaleString()}</td>
+                        <td>${bid.selected ? "Selected" : `<button class="action-btn" onclick="selectBid(${tenderId}, ${bid.id})">Select</button>`}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(err => console.error("Error fetching bids:", err));
+    }
+
+    function selectBid(tenderId, bidId) {
+        console.log("Selecting bid:", bidId, "for tender:", tenderId);
+        fetch(`${API_BASE_URL}/tender/${tenderId}/select-bid`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bidId })
+        })
+            .then(res => res.text())
+            .then(msg => {
+                alert(msg);
+                if (msg.includes("Successfully")) {
+                    fetchBids(tenderId);
+                }
+            })
+            .catch(err => console.error("Error selecting bid:", err));
+    }
+
+    function logout() {
+        window.location.href = "login.html";
+    }
+
+    // Initialize
+    showSection("details");
+</script>
+</body>
+</html>

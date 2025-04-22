@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tender Booking - Login</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="form-container">
+  <h1>Login</h1>
+  <form id="login-form">
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="Enter Email" required />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter Password" required />
+    </div>
+    <div class="field">
+      <label for="role">Role</label>
+      <select id="role" required>
+        <option value="" disabled selected>Select Role</option>
+        <option value="admin">Admin</option>
+        <option value="vendor">Vendor</option>
+      </select>
+    </div>
+    <button type="button" onclick="login()">Login</button>
+  </form>
+  <div id="message"></div>
+  <div class="link">
+    <a href="vendor-register.html">Don't have an account? Register as Vendor</a>
+  </div>
+</div>
+<script>
+  const API_BASE_URL = "http://localhost:8083";
+
+  function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      const role = document.getElementById("role").value;
+      const messageBox = document.getElementById("message");
+
+      if (!email || !password || !role) {
+          messageBox.innerText = "Please fill in all fields.";
+          messageBox.style.color = "red";
+          return;
+      }
+
+      const endpoint = role === "admin" ? "/admin/login" : "/vendor/login";
+      console.log(`Logging in as ${role}:`, { email, password });
+
+      fetch(`${API_BASE_URL}${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+      })
+          .then(res => res.text())
+          .then(msg => {
+              messageBox.innerText = msg;
+              messageBox.style.color = msg.includes("Successful") ? "green" : "red";
+              if (msg.includes("Successful")) {
+                  setTimeout(() => {
+                      window.location.href = role === "admin" ? "admin-dashboard.html" : "vendor-dashboard.html";
+                  }, 1000);
+              }
+          })
+          .catch(err => {
+              console.error("Error logging in:", err);
+              messageBox.innerText = "Error logging in.";
+              messageBox.style.color = "red";
+          });
+  }
+</script>
+</body>
+</html>
